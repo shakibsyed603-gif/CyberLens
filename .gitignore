@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pkl
+*.parquet
+
+# Data (large)
+data/raw/
+data/processed/
+
+# Virtual env
+.venv/
+env/
+
+# Logs
+*.log
+
+# Streamlit
+.streamlit/
+
+# OS
+.DS_Store
+Thumbs.db
