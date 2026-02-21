@@ -24,3 +24,7 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# allow KDD dataset for Streamlit
+!data/raw/KDDTrain+.txt
+!data/raw/KDDTest+.txt
