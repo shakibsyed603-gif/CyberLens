@@ -26,6 +26,7 @@ env/
 Thumbs.db
 
 # allow KDD dataset for Streamlit
+!data/
 data/raw/*
 !data/raw/KDDTrain+.txt
 !data/raw/KDDTest+.txt
