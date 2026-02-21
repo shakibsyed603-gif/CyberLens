@@ -232,15 +232,15 @@ def load_demo_data():
         anomaly_data['threat_level'] = anomaly_data['anomaly_score'].apply(get_threat_level)
 
         def get_attack_type(score):
-    """Determine attack type based on anomaly score"""
-    if score <= p_high:
-        return "DoS"
-    elif score <= p_medium:
-        return "Probe"
-    elif score < 0:
-        return "R2L"
-    else:
-        return "Normal"
+            """Determine attack type based on anomaly score"""
+            if score <= p_high:
+                return "DoS"
+            elif score <= p_medium:
+                return "Probe"
+            elif score < 0:
+                return "R2L"
+            else:
+                return "Normal"
 
         anomaly_data['attack_type'] = anomaly_data['anomaly_score'].apply(get_attack_type)
 
