@@ -1,5 +1,7 @@
 import warnings
 import logging
+import subprocess
+import sys
 
 # Suppress sklearn version mismatch warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
@@ -146,64 +148,79 @@ st.markdown("""
 
 @st.cache_data
 def load_demo_data():
-    """Load and prepare demo data for the application"""
+    """Load and prepare demo data (Streamlit Cloud auto-setup)"""
     try:
-        # Check if required files exist
-        if not os.path.exists(MODEL_PATH):
-            st.error(f"Model file not found at {MODEL_PATH}. Please train the model first by running: python src/model_trainer.py")
-            return None
-            
-        # Load processed data
         processed_data_path = os.path.join(PROCESSED_DATA_DIR, "processed_data.pkl")
+
+        # ─────────────────────────────────────────
+        # STEP 1: Auto-run data processor if missing
+        # ─────────────────────────────────────────
         if not os.path.exists(processed_data_path):
-            st.error(f"Processed data not found. Please run: python src/data_processor.py")
-            return None
-            
+            st.warning("⚙️ First run: Processing dataset...")
+            try:
+                subprocess.run(
+                    [sys.executable, "src/data_processor.py"],
+                    check=True
+                )
+                st.success("✅ Data processing complete")
+            except Exception as e:
+                st.error(f"❌ Data processing failed: {e}")
+                return None
+
+        # ─────────────────────────────────────────
+        # STEP 2: Auto-train model if missing
+        # ─────────────────────────────────────────
+        if not os.path.exists(MODEL_PATH):
+            st.warning("⚙️ First run: Training model...")
+            try:
+                subprocess.run(
+                    [sys.executable, "src/model_trainer.py"],
+                    check=True
+                )
+                st.success("✅ Model training complete")
+            except Exception as e:
+                st.error(f"❌ Model training failed: {e}")
+                return None
+
+        # ─────────────────────────────────────────
+        # STEP 3: Load data normally
+        # ─────────────────────────────────────────
         processed_data = joblib.load(processed_data_path)
         X = processed_data['X']
         y = processed_data['y']
-        
-        # Load model for predictions
+
         model = joblib.load(MODEL_PATH)
-        
-        # Get predictions and scores
+
         predictions = model.predict(X)
         scores = model.decision_function(X)
-        
-        # Create a demo dataset with anomalies
+
         anomaly_mask = predictions == -1
         anomaly_data = X[anomaly_mask].copy()
         anomaly_scores = scores[anomaly_mask]
-        
-        # Limit to max display size
+
         max_display = UI_CONFIG['max_anomalies_display']
         if len(anomaly_data) > max_display:
             sample_indices = np.random.choice(len(anomaly_data), max_display, replace=False)
             anomaly_data = anomaly_data.iloc[sample_indices]
             anomaly_scores = anomaly_scores[sample_indices]
-        
-        # Add some metadata for display
+
         anomaly_data = anomaly_data.reset_index(drop=True)
         anomaly_data['anomaly_score'] = anomaly_scores
-        # Derive dynamic thresholds from the model's full score distribution so
-        # severity reflects the model's actual outputs (percentile-based).
-        # Use the complete `scores` for percentile calculation (not only anomalies)
-        # so thresholds are comparable between normal and anomalous samples.
+
+        # thresholds
         try:
-            p_high = np.percentile(scores, 5)   # bottom 5% of all samples -> most severe
-            p_medium = np.percentile(scores, 20)  # bottom 20% -> medium
+            p_high = np.percentile(scores, 5)
+            p_medium = np.percentile(scores, 20)
         except Exception:
-            # Fallback to static thresholds if percentiles cannot be computed
             p_high = -0.7
             p_medium = -0.3
+
         anomaly_data['timestamp'] = pd.date_range(
             start=datetime.now() - timedelta(days=7),
             periods=len(anomaly_data),
             freq='5min'
         )
-        
-        # Add threat levels based on anomaly scores
-        # Use percentile-based thresholds so labels match the model's score distribution
+
         def get_threat_level(score):
             if score <= p_high:
                 return "High"
@@ -213,33 +230,28 @@ def load_demo_data():
                 return "Low"
 
         anomaly_data['threat_level'] = anomaly_data['anomaly_score'].apply(get_threat_level)
-        
-        # Add attack type based on anomaly score (deterministic, not random)
-        # This ensures consistency across the application
-        def get_attack_type(score):
-            """Determine attack type based on anomaly score (simple heuristic)
 
-            Uses the same percentile thresholds as the severity mapping to keep
-            attack type assignment aligned with the observed anomaly distribution.
-            """
-            if score <= p_high:
-                return "DoS"
-            elif score <= p_medium:
-                return "Probe"
-            elif score < 0:
-                return "R2L"
-            else:
-                return "Normal"
-        
+        def get_attack_type(score):
+    """Determine attack type based on anomaly score"""
+    if score <= p_high:
+        return "DoS"
+    elif score <= p_medium:
+        return "Probe"
+    elif score < 0:
+        return "R2L"
+    else:
+        return "Normal"
+
         anomaly_data['attack_type'] = anomaly_data['anomaly_score'].apply(get_attack_type)
-        
+
         return anomaly_data
-        
+
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         import traceback
         st.error(traceback.format_exc())
         return None
+
 
 @st.cache_resource
 def load_explainer():
