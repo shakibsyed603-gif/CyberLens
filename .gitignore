@@ -8,7 +8,7 @@ __pycache__/
 *.db
 
 # Data (large)
-data/raw/
+
 data/processed/
 
 # Virtual env
